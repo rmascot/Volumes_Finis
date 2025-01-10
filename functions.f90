@@ -8,8 +8,9 @@ module functions
     contains
 
     !################# Initialisation de U #################
-    subroutine initialize(U, dx, g)
+    subroutine initialize(U, dx, g, phi_g)
         real(PR), dimension(:,:), intent(out) :: U
+        real(PR), dimension(:), intent(out) :: phi_g
         real(PR), intent(in) :: dx, g
         integer :: i
         real(PR) :: x
@@ -21,11 +22,15 @@ module functions
             U(i, 1) = (1._PR - ((gamma - 1._PR)/(gamma)) * g*x)**(1._PR/(gamma - 1._PR))  ! Densité
             U(i, 2) = 0._PR  ! Quantité de mouvement
             U(i, 3) = (U(i, 1)**gamma) / (gamma - 1._PR)  ! Énergie totale
+            phi_g(i) = g * x
         end do
+        phi_g(1) = phi_g(2)
+        phi_g(size(U)/3) = phi_g(size(U)/3-1) - dx*g
     end subroutine initialize
 
-    ! subroutine initialize(U, dx, g)
+    ! subroutine initialize(U, dx, g, phi_g)
     !     real(PR), dimension(:,:), intent(out) :: U
+    !     real(PR), dimension(:), intent(out) :: phi_g
     !     real(PR), intent(in) :: dx, g
     !     integer :: i
     !     real(PR) :: x
@@ -121,6 +126,11 @@ module functions
             source(i, 2) = - U(i+1, 1) * g       ! Gravité dans la direction de la quantité de mouvement
             source(i, 3) = - U(i+1, 2) * g       ! Gravité dans la direction de l'énergie
         end do
+        ! do i = 1, size(source)/3
+        !     source(i, 1) = 0.0                ! Pas de source pour la masse
+        !     source(i, 2) = 0.0       ! Gravité dans la direction de la quantité de mouvement
+        !     source(i, 3) = 0.0       ! Gravité dans la direction de l'énergie
+        ! end do
     end subroutine compute_source
 
     !################# Lecture des parametres #################

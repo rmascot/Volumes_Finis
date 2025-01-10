@@ -5,7 +5,7 @@ module const
     ! Paramètres du problème
     integer, parameter :: PR = 8
     !integer, parameter :: nx = 400          ! Nombre de cellules
-    real(PR), parameter :: gamma = 1.4      ! Rapport des chaleurs spécifiques
+    real(PR), parameter :: gamma = 5._PR/3._PR      ! Rapport des chaleurs spécifiques
     !real(PR), parameter :: c = 341.0       ! Rapport des chaleurs spécifiques
     !real(PR), parameter :: g = 0.0          ! Gravité
     !real(PR), parameter :: L = 1.0           ! Longueur du domaine

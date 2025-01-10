@@ -8,7 +8,7 @@ program euler_rusanov_gravity
   
     ! Variables pour les calculs
     real(PR) :: dx, dt, t, L, g, tmax, lambda1, lambda2, lambda3, vitesse_u, t_sound, c
-    real(PR), dimension(:), allocatable :: P, max_vp
+    real(PR), dimension(:), allocatable :: P, max_vp, phi_g
     !real(PR), dimension(3) :: Flux_gauche, Flux_droite
     real(PR), dimension(:,:), allocatable :: F, U, U_np1, m_div_F, U_analytical, Us
     real(PR), dimension(:,:), allocatable :: F_arete
@@ -22,13 +22,13 @@ program euler_rusanov_gravity
     ! allocate(U(nx, 3), source(nx, 3))
     ! allocate(U_analytical(nx, 3))
     ! allocate(P(nx), max_vp(nx), F_arete(nx-1, 3), F(nx, 3), U_np1(nx, 3), m_div_F(nx, 3))
-    allocate(U(nx+2, 3), source(nx, 3))
+    allocate(U(nx+2, 3), source(nx, 3), phi_g(nx+2))
     allocate(U_analytical(nx+2, 3))
     allocate(P(nx+2), max_vp(nx+2), F_arete(nx+1, 3), F(nx+2, 3), U_np1(nx+2, 3), m_div_F(nx, 3))
 
     print*, nx, g, L, tmax
     dx = L / nx
-    call initialize(U, dx, g)
+    call initialize(U, dx, g, phi_g)
   
     ! Initialisation du temps
     t = 0.0
@@ -39,7 +39,7 @@ program euler_rusanov_gravity
     do while (t < tmax)
     !do j = 1, 2
 
-        U(2,2) = U(2,1)*(0.1*sin(6*pi*t))
+        U(2,2) = U(2,1)*((1e-1)*sin(8*pi*t))
 
         ! Calcul de la pression
         P(2:nx+1) = (gamma - 1._PR) * (U(2:nx+1,3) - 0.5 * U(2:nx+1, 2)**2 / U(2:nx+1, 1))
@@ -66,7 +66,7 @@ program euler_rusanov_gravity
         end do
 
         ! Calcul du pas de temps basé sur CFL
-        dt = dx / (2*maxval(max_vp(:)))
+        dt = 0.9 * dx / (2*maxval(max_vp(:)))
 
         if (dt <= 0.0 .or. dt > 1.0) then
             print *, "Erreur: Pas de temps non valide, dt =", dt
@@ -83,11 +83,17 @@ program euler_rusanov_gravity
         ! Calcul du terme source de gravité
         call compute_source(U, source, g)
 
-        !print*, (dt * m_div_F(500, 1) + dt * source(500, 1))
+        !print*, m_div_F(1024, 2)/m_div_F(1024, 1)
+        print*, (source(1024, 2)*(phi_g(1024+2)-phi_g(1024+1))/dx + source(1024, 2)*(phi_g(1024+1)-phi_g(1024))/dx)
     
         ! Mise à jour des variables conservées
         do i = 1, nx
-            U_np1(i+1, :) = U(i+1, :) + dt * m_div_F(i, :) + dt * source(i, 1)
+            !U_np1(i+1, :) = U(i+1, :) + dt * m_div_F(i, :) + dt * source(i, :)
+            if (i == 1) then
+                U_np1(i+1, :) = U(i+1, :) + dt * m_div_F(i, :) + dt * 0.5 * (source(i, :)*(phi_g(i+2)-phi_g(i+1))/dx + source(i, :)*(phi_g(i+1)-phi_g(i))/dx)
+            else 
+                U_np1(i+1, :) = U(i+1, :) + dt * m_div_F(i, :) + dt * 0.5 * (source(i, :)*(phi_g(i+2)-phi_g(i+1))/dx + source(i-1, :)*(phi_g(i+1)-phi_g(i))/dx)
+            end if
         end do
     
         ! Mettre à jour les variables
@@ -107,7 +113,7 @@ program euler_rusanov_gravity
     ! Calcul de la solution analytique et de l'erreur
     allocate(Us(nx+2, 3))
 
-    call initialize(Us, dx, g)
+    call initialize(Us, dx, g, phi_g)
     call compute_analytical(U_analytical, t, nx, dx, L)
   
     ! Sauvegarde des résultats dans un fichier
