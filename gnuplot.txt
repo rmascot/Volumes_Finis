@@ -3,40 +3,29 @@ set terminal pngcairo enhanced size 1500, 900
 set output "plot.png"
 
 # Configuration de l'affichage
-set title "Tube à Choc (Rusanov)"
-set xlabel "Position (x)"
-set ylabel "Valeurs"
+set title "Tube à Choc (Rusanov)" font ",20"
+set xlabel "Position (x)" font ",20"
+set ylabel "Valeurs" font ",20"
+set key font ",15" 
 
 # Multiplot
-set multiplot layout 1, 2 title "Graphiques des variables en fonction de x"
-
-# Première figure : U_init en fonction de x
-#set title "U_init en fonction de x"
-#set xlabel "x"
-#set ylabel "rho"
-#plot "solution_reference.txt" using 1:7 with lines title "rho" lw 2 lc rgb "blue"
-
-# Deuxième figure : P_init en fonction de x
-#set title "Pression initiale en fonction de x"
-#set xlabel "x"
-#set ylabel "rho*u"
-#plot "solution_reference.txt" using 1:8 with lines title "rho*u" lw 2 lc rgb "red"
+set multiplot layout 1, 2
 
 # Figure Gauche : delta P en fonction de x
-set title "Perturbation pression en fonction de x"
+set title "Perturbation en pression en fonction de x"
 set xlabel "x"
-set ylabel "deltaP"
-plot "solution_reference.txt" using 1:5 with lines title "reference" lw 2 lc rgb "blue", \
-      "solution_256.txt" using 1:5 with lines title "256" lw 2 lc rgb "red", \
-      "solution_1024.txt" using 1:5 with lines title "1024" lw 2 lc rgb "orange"
+set ylabel "Pressure perturbation"
+plot "solution_reference.txt" using 1:5 with lines title "reference" lw 2 lc rgb "blue" , \
+      "solution_512.txt" using 1:5 with lines title "512" lw 2 lc rgb "red", \
+      "solution_2048.txt" using 1:5 with lines title "2048" lw 2 lc rgb "orange"
 
-# Figure Droite : deltaU en fonction de x
-set title "Perturbation u en fonction de x"
+# Figure Droite : Vitesse en fonction de x
+set title "Vitesse en fonction de x"
 set xlabel "x"
-set ylabel "deltaU"
-plot "solution_reference.txt" using 1:6 with lines title "reference" lw 2 lc rgb "blue", \
-     "solution_256.txt" using 1:6 with lines title "256" lw 2 lc rgb "red", \
-     "solution_1024.txt" using 1:6 with lines title "1024" lw 2 lc rgb "orange"
+set ylabel "Velocity"
+plot "solution_reference.txt" using 1:6 with lines title "reference" lw 2 lc rgb "blue" , \
+     "solution_512.txt" using 1:6 with lines title "512" lw 2 lc rgb "red", \
+     "solution_2048.txt" using 1:6 with lines title "2048" lw 2 lc rgb "orange"
 
 # Fin du multiplot
 unset multiplot

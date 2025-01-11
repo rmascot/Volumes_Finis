@@ -47,7 +47,7 @@ module functions
 
             if (delta_P > erreur_inf_P) then
                 erreur_inf_P = delta_P
-                !print*, i-1, (gamma - 1._PR) * (U(i, 3) - 0.5 * U(i, 2)**2 / U(i, 1)) - Us(i, 1)**gamma, U_interp(i, 4)
+                print*, i-1, (gamma - 1._PR) * (U(i, 3) - 0.5 * U(i, 2)**2 / U(i, 1)) - Us(i, 1)**gamma, U_interp(i, 4)
             end if
             if (delta_u > erreur_inf_u) then
                 erreur_inf_u = delta_u
@@ -58,16 +58,17 @@ module functions
     end subroutine calculate_infinity_norm
 
     !################# Erreur en norme L2 #################
-    subroutine calculate_L2_norm(U, U_interp, Us, nx, erreur_L2_P, erreur_L2_u)
+    subroutine calculate_L2_norm(U, U_interp, Us, nx, erreur_L2_P, erreur_L2_u, erreur_rho)
         real(PR), dimension(:,:), intent(in) :: U, U_interp, Us
         integer, intent(in) :: nx
-        real(PR), intent(out) :: erreur_L2_P, erreur_L2_u
-        real(PR) :: sum_delta_P, sum_delta_u
+        real(PR), intent(out) :: erreur_L2_P, erreur_L2_u, erreur_rho
+        real(PR) :: sum_delta_P, sum_delta_u, sum_erreur_rho
         real(PR) :: delta_P, delta_u
         integer :: i
     
         sum_delta_P = 0._PR
         sum_delta_u = 0._PR
+        sum_erreur_rho = 0._PR
     
         ! Calcul des erreurs
         do i = 2, nx+1
@@ -76,12 +77,44 @@ module functions
     
             sum_delta_P = sum_delta_P + delta_P**2
             sum_delta_u = sum_delta_u + delta_u**2
+            sum_erreur_rho = sum_erreur_rho + (U(i, 1) - U_interp(i, 1))**2
         end do
     
         ! Calcul des normes L2
         erreur_L2_P = sqrt(sum_delta_P / nx)
         erreur_L2_u = sqrt(sum_delta_u / nx)
+        erreur_rho = sqrt(sum_erreur_rho / nx)
     end subroutine calculate_L2_norm
+
+    !################# Erreur en norme L1 #################
+    subroutine calculate_L1_norm(U, U_interp, Us, nx, erreur_P, erreur_u, erreur_rho)
+        real(PR), dimension(:,:), intent(in) :: U, U_interp, Us
+        integer, intent(in) :: nx
+        real(PR), intent(out) :: erreur_P, erreur_u, erreur_rho
+        real(PR) :: sum_delta_P, sum_delta_u, sum_erreur_rho
+        real(PR) :: delta_P, delta_u
+        integer :: i
+    
+        sum_delta_P = 0._PR
+        sum_delta_u = 0._PR
+        sum_erreur_rho = 0._PR
+    
+        ! Calcul des erreurs
+        do i = 2, nx+1
+            delta_P = abs((gamma - 1._PR) * (U(i, 3) - 0.5 * U(i, 2)**2 / U(i, 1)) - Us(i, 1)**gamma - U_interp(i, 4))
+            delta_u = abs(U(i, 2) / U(i, 1) - U_interp(i, 2) / U_interp(i, 1))
+
+            sum_delta_P = sum_delta_P + delta_P
+            !print*, i, (gamma - 1._PR) * (U(i, 3) - 0.5 * U(i, 2)**2 / U(i, 1)) - Us(i, 1)**gamma, U_interp(i, 4)
+            sum_delta_u = sum_delta_u + delta_u
+            sum_erreur_rho = sum_erreur_rho + abs(U(i, 1) - U_interp(i, 1))
+        end do
+    
+        ! Calcul des normes L2
+        erreur_P = sum_delta_P / nx
+        erreur_u = sum_delta_u / nx
+        erreur_rho = sum_erreur_rho / nx
+    end subroutine calculate_L1_norm
 
     !################# Initialisation des cellules fantômes pour les conditions de bord #################
     subroutine set_ghost_cells(U, P, nx)

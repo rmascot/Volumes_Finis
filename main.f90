@@ -9,24 +9,24 @@ program euler_rusanov_gravity
 
     ! Variables pour les calculs
     logical :: test_convergence
-    real(PR) :: dx, L, g, tmax, erreur_P, erreur_u
+    real(PR) :: dx, L, g, tmax, erreur_P, erreur_u, erreur_rho
     real(PR), dimension(:,:), allocatable :: U, U_ref, U_interp, Us
     real(PR), dimension(:), allocatable :: phi_g, P
-    integer :: nx, nx_ref, i
+    integer :: nx, nx_ref, i, percentage, previous_percentage
     real(PR) :: temp1, temp2, temp3, temp4, temp5, temp6  ! Variables pour lire les colonnes
 
     ! Initialisation des tableaux pour stocker les erreurs
-    real(PR), dimension(5) :: erreurs_P, erreurs_u
+    real(PR), dimension(5) :: erreurs_P, erreurs_u, erreurs_rho
     integer, dimension(5) :: nx_values
     character(len=256) :: filename
 
-    ! === PARAMÈTRES UTILISATEUR ===
+    !A modifier pour faire un test de convergence
     test_convergence = .TRUE.  ! Mettre à .FALSE. pour une seule simulation
 
     if (.not. test_convergence) then
-        ! =============================
-        ! CAS SIMPLE : UNE SEULE SIMULATION
-        ! =============================
+        !##################################################################################
+        !Lancement d'une unique simulation, avec les paramètres du fichier "parameters.txt"
+        !##################################################################################
 
         call read_parameters("parameters.txt", nx, g, L, tmax)
 
@@ -44,9 +44,9 @@ program euler_rusanov_gravity
         print*, "Simulation terminée avec succès."
 
     else
-        ! =============================
-        ! CAS TEST DE CONVERGENCE
-        ! =============================
+        !##################################################################
+        !Test de convergence en calculant l'erreur pour plusieurs maillages
+        !##################################################################
 
         call read_parameters("parameters.txt", nx_ref, g, L, tmax)
 
@@ -87,10 +87,11 @@ program euler_rusanov_gravity
             !call output_results(U_interp, Us, P, nx, L, filename)
 
             !call calculate_infinity_norm(U, U_interp, Us, nx, erreur_P, erreur_u)
-            call calculate_L2_norm(U, U_interp, Us, nx, erreur_P, erreur_u)
+            call calculate_L1_norm(U, U_interp, Us, nx, erreur_P, erreur_u, erreur_rho)
 
             erreurs_P(i) = erreur_P
             erreurs_u(i) = erreur_u
+            erreurs_rho(i) = erreur_rho
 
             print*, "Erreur en norme infinie pour nx =", nx
             print*, "Erreur P :", erreur_P, ", Erreur u :", erreur_u
@@ -100,9 +101,9 @@ program euler_rusanov_gravity
         end do
 
         open(unit=20, file="erreurs.txt", status="unknown", action="write")
-        write(20, '(A)') "nx      Erreur_P    Erreur_u"
+        write(20, '(A)') "nx      Erreur_P    Erreur_u    Erreur_rho"
         do i = 1, 5
-            write(20, '(I4, F12.6, F12.6)') nx_values(i), erreurs_P(i), erreurs_u(i)
+            write(20, '(I5, F24.15, F24.15, F24.15)') nx_values(i), erreurs_P(i), erreurs_u(i), erreurs_rho(i)
         end do
         close(20)
 
@@ -121,11 +122,27 @@ contains
 
         ratio = real(nx_ref) / real(nx)
 
-        do i = 1, nx
-            j = min(int((i-1) * ratio + int(ratio/2._PR)), nx_ref)
-            !print*, j, "x = ", (i - 0.5) * 2._PR / nx, " x = ", ((j - 0.5) * 2._PR / nx_ref + (j + 0.5) * 2._PR / nx_ref)/2._PR
-            U_interp(i+1, :) = (U_ref(j, :) + U_ref(j+1, :))/2._PR
-        end do
+        if (nx == nx_ref) then
+            do i = 1, nx
+                print*, "Attention"
+                j = min(int((i-1) * ratio + 1), nx_ref)
+                !print*, i, j, "x = ", (i - 0.5) * 2._PR / nx, " x = ", ((j - 0.5) * 2._PR / nx_ref + (j + 0.5) * 2._PR / nx_ref)/2._PR
+                if (i == nx) then
+                    U_interp(i+1, :) = (U_ref(j, :))
+                else
+                    U_interp(i+1, :) = (U_ref(j, :) + U_ref(j+1, :))/2._PR
+                end if
+            end do
+        else
+            do i = 1, nx
+                j = min(int((i-1) * ratio + int(ratio/2._PR)), nx_ref)
+                !print*, j, "x = ", (i - 0.5) * 2._PR / nx, " x = ", ((j - 0.5) * 2._PR / nx_ref + (j + 0.5) * 2._PR / nx_ref)/2._PR
+                U_interp(i+1, :) = (U_ref(j, :) + U_ref(j+1, :))/2._PR
+                !U_interp(i+1, :) = (U_ref(j, :))
+                !print*, i, j
+            end do
+        end if
+
     end subroutine interpolate_solution
 
     !################# Réalisation d'une simulation complète #################
@@ -139,20 +156,21 @@ contains
         real(PR) :: dx, dt, t, lambda1, lambda2, lambda3, vitesse_u, c
         real(PR), dimension(:), allocatable :: max_vp
         real(PR), dimension(:,:), allocatable :: F, U_np1, F_arete, m_div_F, source
-        integer :: i, j
+        integer :: i
 
         dx = L / nx
         allocate(max_vp(nx+2), F(nx+2, 3), U_np1(nx+2, 3), F_arete(nx+1, 3), m_div_F(nx, 3), source(nx, 3))
 
         ! Initialisation du temps
         t = 0.0
-        j = 0
+        previous_percentage = 0
+        print*, "Simulation en cours..."
 
         ! Boucle temporelle
         do while (t < tmax)
 
             ! Ajout d'une perturbation sinusoïdale
-            U(2, 2) = U(2, 1) * (0.1_PR * sin(8.0_PR * pi * t))
+            U(2, 2) = U(2, 1) * (1e-1 * sin(6.0_PR * pi * t))
 
             ! Calcul de la pression
             P(2:nx+1) = (gamma - 1._PR) * (U(2:nx+1, 3) - 0.5 * U(2:nx+1, 2)**2 / U(2:nx+1, 1))
@@ -171,7 +189,7 @@ contains
             end do
 
             ! Calcul du pas de temps basé sur le critère CFL
-            dt = 0.9 * dx / (2 * maxval(max_vp(:)))
+            dt = dx / (2 * maxval(max_vp(:)))
             if (dt <= 0.0 .or. dt > 1.0) then
                 print *, "Erreur: Pas de temps non valide, dt =", dt
                 stop
@@ -196,12 +214,20 @@ contains
 
             ! Mise à jour des variables
             U = U_np1
+            call set_ghost_cells(U, P, nx)
             t = t + dt
-            j = j + 1
+
+            ! Calculer le pourcentage d'avancement
+            percentage = int((t / tmax) * 100)
+
+            ! Afficher seulement si le pourcentage a changé
+            ! if (percentage >= previous_percentage + 1) then
+            !     print*, "Progression : ", percentage, "%"
+            !     previous_percentage = percentage
+            ! end if
         end do
 
-        ! Affichage du nombre d'itérations en temps
-        print*, "Nombre d'itérations en temps : ", j
+        print*, "Simulation terminée."
 
         ! Libération de la mémoire
         deallocate(max_vp, F, U_np1, F_arete, m_div_F, source)
