@@ -26,17 +26,17 @@ set multiplot layout 1, 2 title "Graphiques des variables en fonction de x"
 set title "Perturbation pression en fonction de x"
 set xlabel "x"
 set ylabel "deltaP"
-plot "solution_reference.txt" using 1:2 with lines title "reference" lw 2 lc rgb "blue", \
-      "solution_256.txt" using 1:2 with lines title "256" lw 2 lc rgb "red", \
-      "solution_1024.txt" using 1:2 with lines title "1024" lw 2 lc rgb "orange"
+plot "solution_reference.txt" using 1:5 with lines title "reference" lw 2 lc rgb "blue", \
+      "solution_256.txt" using 1:5 with lines title "256" lw 2 lc rgb "red", \
+      "solution_1024.txt" using 1:5 with lines title "1024" lw 2 lc rgb "orange"
 
 # Figure Droite : deltaU en fonction de x
 set title "Perturbation u en fonction de x"
 set xlabel "x"
 set ylabel "deltaU"
-plot "solution_reference.txt" using 1:3 with lines title "reference" lw 2 lc rgb "blue", \
-     "solution_256.txt" using 1:3 with lines title "256" lw 2 lc rgb "red", \
-     "solution_1024.txt" using 1:3 with lines title "1024" lw 2 lc rgb "orange"
+plot "solution_reference.txt" using 1:6 with lines title "reference" lw 2 lc rgb "blue", \
+     "solution_256.txt" using 1:6 with lines title "256" lw 2 lc rgb "red", \
+     "solution_1024.txt" using 1:6 with lines title "1024" lw 2 lc rgb "orange"
 
 # Fin du multiplot
 unset multiplot

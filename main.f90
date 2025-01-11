@@ -9,11 +9,11 @@ program euler_rusanov_gravity
 
     ! Variables pour les calculs
     logical :: test_convergence
-    real(PR) :: dx, L, g, tmax, erreur_inf_P, erreur_inf_u
+    real(PR) :: dx, L, g, tmax, erreur_P, erreur_u
     real(PR), dimension(:,:), allocatable :: U, U_ref, U_interp, Us
     real(PR), dimension(:), allocatable :: phi_g, P
     integer :: nx, nx_ref, i
-    real(PR) :: temp1, temp2, temp3  ! Variables pour lire les colonnes
+    real(PR) :: temp1, temp2, temp3, temp4, temp5, temp6  ! Variables pour lire les colonnes
 
     ! Initialisation des tableaux pour stocker les erreurs
     real(PR), dimension(5) :: erreurs_P, erreurs_u
@@ -50,17 +50,18 @@ program euler_rusanov_gravity
 
         call read_parameters("parameters.txt", nx_ref, g, L, tmax)
 
-        allocate(U_ref(nx_ref, 3))
+        allocate(U_ref(nx_ref, 4))
 
         ! Ouvrir le fichier
         open(unit=10, file="solution_reference.txt", status="old", action="read")
     
         ! Lire les données
         do i = 1, nx_ref
-            read(10, *) temp1, temp2, temp3
-            U_ref(i, 1) = temp1                   ! Remplir la colonne 1 de U_ref avec la colonne 2 du fichier
-            U_ref(i, 2) = temp2                   ! Remplir la colonne 2 de U_ref avec la colonne 3 du fichier
-            U_ref(i, 3) = temp3                   ! Remplir la colonne 3 de U_ref avec la colonne 4 du fichier
+            read(10, *) temp1, temp2, temp3, temp4, temp5, temp6
+            U_ref(i, 1) = temp2                   ! rho
+            U_ref(i, 2) = temp3                   ! rho*u
+            U_ref(i, 3) = temp4                   ! E
+            U_ref(i, 4) = temp5                   ! P
         end do
 
         do i = 1, 5
@@ -75,7 +76,7 @@ program euler_rusanov_gravity
             call initialize(U, dx, g, phi_g)
             call simulate(U, P, nx, g, L, tmax, phi_g)
 
-            allocate(U_interp(nx+2, 3))
+            allocate(U_interp(nx+2, 4))
             call interpolate_solution(U_ref, U_interp, nx_ref, nx)
 
             allocate(Us(nx+2, 3))
@@ -83,22 +84,25 @@ program euler_rusanov_gravity
             ! Construire le nom du fichier
             write(filename, '(A,I0,A)') "solution_", nx, ".txt"
             call output_results(U, Us, P, nx, L, filename)
-            call calculate_infinity_norm(U, U_interp, Us, nx, erreur_inf_P, erreur_inf_u)
+            !call output_results(U_interp, Us, P, nx, L, filename)
 
-            erreurs_P(i) = erreur_inf_P
-            erreurs_u(i) = erreur_inf_u
+            !call calculate_infinity_norm(U, U_interp, Us, nx, erreur_P, erreur_u)
+            call calculate_L2_norm(U, U_interp, Us, nx, erreur_P, erreur_u)
+
+            erreurs_P(i) = erreur_P
+            erreurs_u(i) = erreur_u
 
             print*, "Erreur en norme infinie pour nx =", nx
-            print*, "Erreur P :", erreur_inf_P, ", Erreur u :", erreur_inf_u
+            print*, "Erreur P :", erreur_P, ", Erreur u :", erreur_u
 
             deallocate(U_interp, Us)
             deallocate(U, phi_g, P)
         end do
 
         open(unit=20, file="erreurs.txt", status="unknown", action="write")
-        write(20, '(A)') "nx      Erreur_P      Erreur_u"
+        write(20, '(A)') "nx      Erreur_P    Erreur_u"
         do i = 1, 5
-            write(20, '(I8, F12.6, F12.6)') nx_values(i), erreurs_P(i), erreurs_u(i)
+            write(20, '(I4, F12.6, F12.6)') nx_values(i), erreurs_P(i), erreurs_u(i)
         end do
         close(20)
 
@@ -107,36 +111,7 @@ program euler_rusanov_gravity
 
 contains
 
-    ! =============================================
-    ! Fonction pour calculer l'erreur en norme infinie
-    ! =============================================
-    subroutine calculate_infinity_norm(U, U_interp, Us, nx, erreur_inf_P, erreur_inf_u)
-        real(PR), dimension(:,:), intent(in) :: U, U_interp, Us
-        integer, intent(in) :: nx
-        real(PR), intent(out) :: erreur_inf_P, erreur_inf_u
-        real(PR), dimension(:), allocatable :: erreur_P, erreur_u
-        real(PR) :: delta_P, delta_u
-        integer :: i
-
-        allocate(erreur_P(nx), erreur_u(nx))
-
-        do i = 2, nx+1
-            delta_P = abs((U(i, 3) - 0.5 * U(i, 2)**2 / U(i, 1)) - Us(i, 1)**gamma - U_interp(i-1, 2))
-            delta_u = abs(U(i, 2) / U(i, 1) - U_interp(i-1, 3))
-
-            erreur_P(i-1) = delta_P
-            erreur_u(i-1) = delta_u
-        end do
-
-        erreur_inf_P = maxval(erreur_P)
-        erreur_inf_u = maxval(erreur_u)
-
-        deallocate(erreur_P, erreur_u)
-    end subroutine calculate_infinity_norm
-
-    ! ============================================
-    ! Sous-routine pour interpoler la solution fine
-    ! ============================================
+    !################# Interpolation de la solution de référence pour le calcul des erreurs #################
     subroutine interpolate_solution(U_ref, U_interp, nx_ref, nx)
         real(PR), dimension(:,:), intent(in) :: U_ref
         real(PR), dimension(:,:), intent(out) :: U_interp
@@ -147,27 +122,25 @@ contains
         ratio = real(nx_ref) / real(nx)
 
         do i = 1, nx
-            j = min(max(1, int(i * ratio)), nx_ref)
-            U_interp(i, :) = U_ref(j, :)
+            j = min(int((i-1) * ratio + int(ratio/2._PR)), nx_ref)
+            !print*, j, "x = ", (i - 0.5) * 2._PR / nx, " x = ", ((j - 0.5) * 2._PR / nx_ref + (j + 0.5) * 2._PR / nx_ref)/2._PR
+            U_interp(i+1, :) = (U_ref(j, :) + U_ref(j+1, :))/2._PR
         end do
     end subroutine interpolate_solution
 
+    !################# Réalisation d'une simulation complète #################
     subroutine simulate(U, P, nx, g, L, tmax, phi_g)
-
-        ! Variables d'entrée/sortie
         real(PR), dimension(:,:), intent(inout) :: U
         real(PR), dimension(:), intent(out) :: P
         real(PR), dimension(:), intent(in) :: phi_g
         integer, intent(in) :: nx
         real(PR), intent(in) :: g, L, tmax
 
-        ! Variables locales
         real(PR) :: dx, dt, t, lambda1, lambda2, lambda3, vitesse_u, c
         real(PR), dimension(:), allocatable :: max_vp
         real(PR), dimension(:,:), allocatable :: F, U_np1, F_arete, m_div_F, source
         integer :: i, j
 
-        ! Initialisation
         dx = L / nx
         allocate(max_vp(nx+2), F(nx+2, 3), U_np1(nx+2, 3), F_arete(nx+1, 3), m_div_F(nx, 3), source(nx, 3))
 
@@ -184,7 +157,7 @@ contains
             ! Calcul de la pression
             P(2:nx+1) = (gamma - 1._PR) * (U(2:nx+1, 3) - 0.5 * U(2:nx+1, 2)**2 / U(2:nx+1, 1))
 
-            ! Mise à jour des ghost cells
+            ! Mise à jour des cellules fantômes
             call set_ghost_cells(U, P, nx)
 
             ! Calcul des valeurs propres

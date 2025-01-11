@@ -14,8 +14,7 @@ module functions
         real(PR), intent(in) :: dx, g
         integer :: i
         real(PR) :: x
-    
-        ! Initialisation en fonction de la solution analytique
+
         U = 1._PR
         do i = 2, size(U)/3 - 1
             x = (i - 1 - 0.5) * dx
@@ -28,42 +27,76 @@ module functions
         phi_g(size(U)/3) = phi_g(size(U)/3-1) - dx*g
     end subroutine initialize
 
-    ! subroutine initialize(U, dx, g, phi_g)
-    !     real(PR), dimension(:,:), intent(out) :: U
-    !     real(PR), dimension(:), intent(out) :: phi_g
-    !     real(PR), intent(in) :: dx, g
-    !     integer :: i
-    !     real(PR) :: x
-    
-    !     ! Initialisation en fonction de la solution analytique
-    !     U = 0._PR
-    !     do i = 2, size(U)/3 - 1
-    !         x = (i - 1 - 0.5) * dx
-    !         U(i, 1) = 1._PR  ! Densité
-    !         U(i, 2) = 0._PR  ! Quantité de mouvement
-    !         U(i, 3) = 1._PR  ! Énergie totale
-    !     end do
-    ! end subroutine initialize
+    !################# Erreur en norme infinie #################
+    subroutine calculate_infinity_norm(U, U_interp, Us, nx, erreur_inf_P, erreur_inf_u)
+        real(PR), dimension(:,:), intent(in) :: U, U_interp, Us
+        integer, intent(in) :: nx
+        real(PR), intent(out) :: erreur_inf_P, erreur_inf_u
+        real(PR), dimension(:), allocatable :: erreur_P, erreur_u
+        real(PR) :: delta_P, delta_u
+        integer :: i
 
+        allocate(erreur_P(nx), erreur_u(nx))
+
+        erreur_inf_P = 0._PR
+        erreur_inf_u = 0._PR
+
+        do i = 2, nx+1
+            delta_P = abs((gamma - 1._PR) * (U(i, 3) - 0.5 * U(i, 2)**2 / U(i, 1)) - Us(i, 1)**gamma - U_interp(i, 4))
+            delta_u = abs(U(i, 2) / U(i, 1) - U_interp(i, 2)/U_interp(i, 1))
+
+            if (delta_P > erreur_inf_P) then
+                erreur_inf_P = delta_P
+                !print*, i-1, (gamma - 1._PR) * (U(i, 3) - 0.5 * U(i, 2)**2 / U(i, 1)) - Us(i, 1)**gamma, U_interp(i, 4)
+            end if
+            if (delta_u > erreur_inf_u) then
+                erreur_inf_u = delta_u
+                !print*, i-1, U(i, 2) / U(i, 1), U_interp(i, 2)/U_interp(i, 1)
+            end if
+        end do
+        deallocate(erreur_P, erreur_u)
+    end subroutine calculate_infinity_norm
+
+    !################# Erreur en norme L2 #################
+    subroutine calculate_L2_norm(U, U_interp, Us, nx, erreur_L2_P, erreur_L2_u)
+        real(PR), dimension(:,:), intent(in) :: U, U_interp, Us
+        integer, intent(in) :: nx
+        real(PR), intent(out) :: erreur_L2_P, erreur_L2_u
+        real(PR) :: sum_delta_P, sum_delta_u
+        real(PR) :: delta_P, delta_u
+        integer :: i
+    
+        sum_delta_P = 0._PR
+        sum_delta_u = 0._PR
+    
+        ! Calcul des erreurs
+        do i = 2, nx+1
+            delta_P = abs((gamma - 1._PR) * (U(i, 3) - 0.5 * U(i, 2)**2 / U(i, 1)) - Us(i, 1)**gamma - U_interp(i, 4))
+            delta_u = abs(U(i, 2) / U(i, 1) - U_interp(i, 2) / U_interp(i, 1))
+    
+            sum_delta_P = sum_delta_P + delta_P**2
+            sum_delta_u = sum_delta_u + delta_u**2
+        end do
+    
+        ! Calcul des normes L2
+        erreur_L2_P = sqrt(sum_delta_P / nx)
+        erreur_L2_u = sqrt(sum_delta_u / nx)
+    end subroutine calculate_L2_norm
+
+    !################# Initialisation des cellules fantômes pour les conditions de bord #################
     subroutine set_ghost_cells(U, P, nx)
         real(PR), dimension(:,:), intent(inout) :: U
         real(PR), dimension(:), intent(inout) :: P
         integer, intent(in) :: nx
     
-        ! Ghost cells à gauche
+        ! Cellule fantôme à gauche
         U(1, :) = U(2, :)  ! Extrapolation de densité, quantité de mouvement, énergie
         P(1) = P(2)        ! Extrapolation de la pression
     
-        ! Ghost cells à droite
+        ! Cellule fantôme à droite
         U(nx+2, :) = U(nx+1, :)
         P(nx+2) = P(nx+1)
-    
-        ! Extrapolation pour la vitesse
-        U(1, 2) = U(2, 2)
-        U(nx+2, 2) = U(nx+1, 2)
 
-        ! U(1, 2) = -U(2, 2)       ! Vitesse symétrique impaire
-        ! U(nx+2, 2) = -U(nx+1, 2)
     end subroutine set_ghost_cells
 
     !################# Calcul de - div (F) #################
@@ -103,11 +136,9 @@ module functions
         real(PR), dimension(:,:), intent(inout) :: F
         integer :: i
 
-         ! Calcul des flux
         do i = 1, size(F)/3
-            ! Calcul des flux
-            F(i, 1) = U(i, 2)                   ! Flux de masse
-            F(i, 2) = (U(i, 2)**2 / U(i, 1)) + P(i)  ! Flux de quantité de mouvement
+            F(i, 1) = U(i, 2)                               ! Flux de masse
+            F(i, 2) = (U(i, 2)**2 / U(i, 1)) + P(i)         ! Flux de quantité de mouvement
             F(i, 3) = U(i, 2)/U(i, 1) * ((U(i, 3) + P(i)))  ! Flux d'énergie
         end do
 
@@ -120,17 +151,11 @@ module functions
         real(PR), intent(in) :: g
         integer :: i
     
-        ! Calcul du terme source de gravité
         do i = 1, size(source)/3
-            source(i, 1) = 0.0                ! Pas de source pour la masse
-            source(i, 2) = - U(i+1, 1) * g       ! Gravité dans la direction de la quantité de mouvement
-            source(i, 3) = - U(i+1, 2) * g       ! Gravité dans la direction de l'énergie
+            source(i, 1) = 0.0     
+            source(i, 2) = - U(i+1, 1) * g   
+            source(i, 3) = - U(i+1, 2) * g 
         end do
-        ! do i = 1, size(source)/3
-        !     source(i, 1) = 0.0                ! Pas de source pour la masse
-        !     source(i, 2) = 0.0       ! Gravité dans la direction de la quantité de mouvement
-        !     source(i, 3) = 0.0       ! Gravité dans la direction de l'énergie
-        ! end do
     end subroutine compute_source
 
     !################# Lecture des parametres #################
@@ -149,7 +174,7 @@ module functions
     
         do
             read(10, '(A)', iostat=ios) line
-            if (ios /= 0) exit  ! Fin du fichier
+            if (ios /= 0) exit
     
             select case (adjustl(trim(line)))
             case ("nx =")
